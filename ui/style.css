@@ -1,0 +1,34 @@
+html {
+	background-color: #333
+}
+
+body {
+	padding: 0 10em
+}
+
+* {
+	color: #eee
+}
+
+header {
+	margin-bottom: 2em;
+	padding: 0.125em;
+	font-size: 1.75em;
+	border-bottom: 2px solid #eee;
+	text-align: center
+}
+
+button, input { color: #333; }
+
+button.project {
+	height: 297px;
+	width: 210px;
+	margin-right: 20px;
+	margin-bottom: 20px;
+}
+
+dialog#new-document {
+	background-color: #333;
+	border: 3px solid orange;
+	border-radius: 30px;
+}
