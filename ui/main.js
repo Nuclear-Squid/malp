@@ -14,7 +14,15 @@ async function load_main_page() {
 
 	let previous_dir = "";
 	for (const { name, parent_dir_path } of projects) {
-		projects_dom_section.innerHTML += `<button class="project"> ${name} </button>`;
+		const new_project_icon = document.createElement("button");
+		new_project_icon.innerHTML = name;
+		new_project_icon.classList.add("project");
+		new_project_icon.addEventListener("click", (_event) => {
+			const path = malp_config.documents_root_repo + parent_dir_path + name + "/index.md";
+			invoke('load_document', { path }).then(response => console.log(response));
+		})
+		projects_dom_section.appendChild(new_project_icon);
+		// projects_dom_section.innerHTML += `<button class="project"> ${name} </button>`;
 
 		if (parent_dir_path != previous_dir) {
 			previous_dir = parent_dir_path;

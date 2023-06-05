@@ -69,12 +69,19 @@ fn create_new_document(repo: String, title: &str) {
     index_md.write(header.as_bytes()).unwrap();
 }
 
+#[tauri::command]
+fn load_document(path: &str) -> String {
+    println!("{path}");
+    fs::read_to_string(path).unwrap()
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
                 parse_config_file,
                 fetch_projects,
                 create_new_document,
+                load_document,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
