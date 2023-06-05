@@ -2,11 +2,7 @@
 const { invoke } = window.__TAURI__.tauri
 
 async function load_main_page() {
-	const malp_config = await invoke('parse_config_file', {});
-	const projects = await invoke('fetch_projects', {
-		rootRepo:   malp_config.documents_root_repo,
-		currentDir: malp_config.documents_root_repo
-	});
+	const projects = await invoke('fetch_projects', {});
 
 	const projects_dom_section = document.querySelector("section#projects");
 	const new_document_dialog = document.querySelector("dialog#new-document");
@@ -18,8 +14,9 @@ async function load_main_page() {
 		new_project_icon.innerHTML = name;
 		new_project_icon.classList.add("project");
 		new_project_icon.addEventListener("click", (_event) => {
-			const path = malp_config.documents_root_repo + parent_dir_path + name + "/index.md";
-			invoke('load_document', { path }).then(response => console.log(response));
+			const documentRelativePath = parent_dir_path + name + "/index.md";
+			invoke('load_document', { documentRelativePath })
+				.then(response => console.log(response));
 		})
 		projects_dom_section.appendChild(new_project_icon);
 		// projects_dom_section.innerHTML += `<button class="project"> ${name} </button>`;
@@ -41,13 +38,8 @@ async function load_main_page() {
 	new_document_dialog.querySelector("button#create")
 		.addEventListener("click", _event => {
 			const title = new_document_dialog.querySelector("input#title").value;
-			const repo = [
-				malp_config.documents_root_repo,
-				new_document_dialog.querySelector("input#repo").value,
-				title
-			].join('')
-
-			invoke('create_new_document', { title, repo, });
+			const repo = new_document_dialog.querySelector("input#repo").value + title;
+			invoke('create_new_document', { title, repo });
 		});
 }
 
