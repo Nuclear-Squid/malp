@@ -1,6 +1,13 @@
 // access the pre-bundled global API functions
 const { invoke } = window.__TAURI__.tauri
 
+function initial_document_render(document_html_string) {
+	document.getElementById("document-selector").style.display = "none";
+	const document_preview_wrapper = document.getElementById("document-preview");
+	const previewed_document = document_preview_wrapper.attachShadow({ mode: "open" });
+	previewed_document.innerHTML = document_html_string;
+}
+
 async function load_main_page() {
 	const projects = await invoke('fetch_projects', {});
 
@@ -16,7 +23,8 @@ async function load_main_page() {
 		new_project_icon.addEventListener("click", (_event) => {
 			const documentRelativePath = parent_dir_path + name + "/index.md";
 			invoke('load_document', { documentRelativePath })
-				.then(response => console.log(response));
+				// .then(response => console.log(response));
+				.then(response => initial_document_render(response));
 		})
 		projects_dom_section.appendChild(new_project_icon);
 		// projects_dom_section.innerHTML += `<button class="project"> ${name} </button>`;
