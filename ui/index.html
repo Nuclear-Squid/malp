@@ -5,39 +5,11 @@
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<link rel="stylesheet" href="style.css"> 
-	<script type="text/javascript" src="main.js" defer></script>
+	<script type="text/javascript" src="main.js"></script>
 	<title>Document</title>
 </head>
 
 <body>
-	<div id="document-selector">
-		<header>
-			<h1> Markdown Live Preview </h1>
-		</header>
-
-		<section id="projects">
-			<button id="new-document-button" class="project"> New Document </button>
-		</section>
-
-		<dialog id="new-document">
-			<div style="display: flex; flex-direction: column">
-				<h1> New Document </h1>
-				<span> Repo:  <input id="repo" type="text" list="known-repos"></input> </span>
-				<span> Title: <input id="title"></input> </span>
-				<span>
-					<button id="create"> create </button>
-					<button id="close">  close </button>
-				</span>
-
-				<datalist id="known-repos"></datalist>
-			</div>
-		</dialog>
-	</div>
-
-	<div id="document-preview">
-	</div>
-
-	<p> prout </p>
-
+	<state-manager/>
 </body>
 </html>

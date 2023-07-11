@@ -14,21 +14,21 @@ struct Config {
 static MALP_CONFIG: OnceLock<Config> = OnceLock::new();
 
 #[derive(Serialize, Deserialize)]
-struct Project {
-    /// Name of the project
+struct DocumentDescriptor {
+    /// Name of the document
     name: String,
-    /// Path to the dir containing the project (relative to `documents_root_repo`)
+    /// Path to the dir containing the document (relative to `documents_root_repo`)
     parent_dir_path: String,
 }
 
 #[tauri::command]
-fn fetch_projects() -> Vec<Project> {
+fn fetch_projects() -> Vec<DocumentDescriptor> {
     let root_repo = &MALP_CONFIG.get().unwrap().documents_root_repo;
     fetch_projects_inner(root_repo, root_repo)
 }
 
-fn fetch_projects_inner(root_repo: &str, current_dir: &str) -> Vec<Project> {
-    // Check if current dir is a project, and return it if it is
+fn fetch_projects_inner(root_repo: &str, current_dir: &str) -> Vec<DocumentDescriptor> {
+    // Check if current dir is a document, and return it if it is
     for entry in fs::read_dir(current_dir).unwrap() {
         let Ok(entry) = entry else { continue; };
 
@@ -39,14 +39,14 @@ fn fetch_projects_inner(root_repo: &str, current_dir: &str) -> Vec<Project> {
                     .strip_prefix(root_repo)
                     .unwrap();
 
-            return vec![Project {
+            return vec![DocumentDescriptor {
                 name: project_name.to_owned(),
                 parent_dir_path: parent_dir_path.to_owned() + "/",
             }];
         }
     }
 
-    // Current dir isn’t a project, check sub directories
+    // Current dir isn’t a document, check sub directories
     fs::read_dir(current_dir).unwrap()
         .map(|entry| fetch_projects_inner(root_repo, entry.unwrap().path().to_str().unwrap()))
         .flatten()
@@ -70,9 +70,9 @@ fn create_new_document(mut repo: String, title: &str) {
 }
 
 #[tauri::command]
-fn load_document(document_relative_path: &str) -> String {
+fn load_document(document_path: &str) -> String {
     let document_absolute_path =
-        MALP_CONFIG.get().unwrap().documents_root_repo.clone() + document_relative_path;
+        MALP_CONFIG.get().unwrap().documents_root_repo.clone() + document_path + "/index.md";
     println!("{document_absolute_path}");
     fs::read_to_string(document_absolute_path).unwrap()
 }

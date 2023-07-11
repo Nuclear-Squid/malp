@@ -1,54 +1,172 @@
 // access the pre-bundled global API functions
 const { invoke } = window.__TAURI__.tauri
 
-function initial_document_render(document_html_string) {
-	document.getElementById("document-selector").style.display = "none";
-	const document_preview_wrapper = document.getElementById("document-preview");
-	const previewed_document = document_preview_wrapper.attachShadow({ mode: "open" });
-	previewed_document.innerHTML = document_html_string;
-}
+/*
+ * TODO: Find better names for half of the classes in this file
+*/
 
-async function load_main_page() {
-	const projects = await invoke('fetch_projects', {});
+class StateManager extends HTMLElement {
+	constructor() {
+		super();
+		const shadow = this.attachShadow({ mode: "open" });
+		shadow.innerHTML = `
+			<style>
+				h1 {
+					text-align: center;
+					color: #eee;
+					font-size: 3em;
+					margin: 1em;
+				}
+			</style>
+			<h1> Markdown Live Preview </h1>
+			<document-selector/>
+		`;
 
-	const projects_dom_section = document.querySelector("section#projects");
-	const new_document_dialog = document.querySelector("dialog#new-document");
-	const data_list_repos = new_document_dialog.querySelector("datalist");
-
-	let previous_dir = "";
-	for (const { name, parent_dir_path } of projects) {
-		const new_project_icon = document.createElement("button");
-		new_project_icon.innerHTML = name;
-		new_project_icon.classList.add("project");
-		new_project_icon.addEventListener("click", (_event) => {
-			const documentRelativePath = parent_dir_path + name + "/index.md";
-			invoke('load_document', { documentRelativePath })
-				// .then(response => console.log(response));
-				.then(response => initial_document_render(response));
-		})
-		projects_dom_section.appendChild(new_project_icon);
-		// projects_dom_section.innerHTML += `<button class="project"> ${name} </button>`;
-
-		if (parent_dir_path != previous_dir) {
-			previous_dir = parent_dir_path;
-			data_list_repos.innerHTML += `<option value="${parent_dir_path}">`;
-		}
+		this.addEventListener("onDocumentSelected", event => {
+			shadow.innerHTML = ``;
+			shadow.appendChild(new DocumentViewer(event.detail.path_to_document));
+		});
 	}
+}
+customElements.define("state-manager", StateManager);
 
-	document.querySelector("button#new-document-button")
-		.addEventListener("click", _event => {
-			new_document_dialog.show();
+
+class DocumentViewer extends HTMLElement {
+	constructor(documentPath) {
+		super();
+		const shadow = this.attachShadow({ mode: "open" });
+		shadow.innerHTML = `
+			<style>
+				div#page {
+					background-color: #eee;
+				}
+			</style>
+			<div id="page"/>
+		`;
+		invoke('load_document', { documentPath }).then(response => {
+			shadow.querySelector("#page").innerHTML = response;
+		});
+	}
+}
+customElements.define("document-viewer", DocumentViewer);
+
+
+// TODO: Find out why the fuck does Tauri not allow deriving buttons
+// THEN: Fix code to not reinvent the fucking `button` element…
+class NewDocumentButton extends HTMLElement /* HTMLButtonElement */ {
+	constructor(existing_repos) {
+		super();
+		const shadow = this.attachShadow({ mode: "open" });
+		shadow.innerHTML = `
+			<style> 
+				button#main {
+					aspect-ratio: 21 / 29.7;
+					width: 150px;
+					font-weight: bold;
+				}
+
+				dialog {
+					background-color: #333;
+					border: 3px solid orange;
+					border-radius: 30px;
+					color: #eee;
+				}
+			</style>
+
+			<button id="main"> + </button>
+
+			<dialog>
+				<div style="display: flex; flex-direction: column">
+					<h1> New Document </h1>
+					<span> Repo:  <input id="repo" type="text" list="known-repos"></input> </span>
+					<span> Title: <input id="title"></input> </span>
+					<span>
+						<button id="create"> create </button>
+						<button id="close"> close </button>
+					</span>
+					<datalist id="known-repos"></datalist>
+				</div>
+			</dialog>
+		`;
+
+		const dialog = shadow.querySelector("dialog");
+		dialog.querySelector("datalist").innerHTML =
+			existing_repos.map(repo => `<option value="${repo}">`).join('');
+
+		shadow.querySelector("#main").addEventListener("click", () => {
+			dialog.show();
+		})
+ 
+		shadow.querySelector("#close").addEventListener("click", () => {
+			dialog.close();
 		});
 
-	new_document_dialog.querySelector("button#close")
-		.addEventListener("click", _event => { new_document_dialog.close() });
-
-	new_document_dialog.querySelector("button#create")
-		.addEventListener("click", _event => {
-			const title = new_document_dialog.querySelector("input#title").value;
-			const repo = new_document_dialog.querySelector("input#repo").value + title;
+		shadow.querySelector("#create").addEventListener("click", () => {
+			const title = shadow.querySelector("input#title").value;
+			const repo = shadow.querySelector("input#repo").value + title;
 			invoke('create_new_document', { title, repo });
 		});
+	}
+}
+customElements.define("new-document-button", NewDocumentButton);
+
+
+class DocumentHandle extends HTMLElement {
+	constructor(name, parent_dir_path) {
+		super();
+		this.name = name;
+		this.parent_dir_path  = parent_dir_path;
+		const shadow = this.attachShadow({ mode: "open" });
+		shadow.innerHTML = `
+			<style> 
+				button {
+					aspect-ratio: 21 / 29.7;
+					width: 150px;
+				}
+			</style>
+			<button> ${name} </button>
+		`;
+		// Using `function` to not fuck `this` up.
+		shadow.querySelector("button").addEventListener("click", function () {
+			this.dispatchEvent(new CustomEvent("onDocumentSelected", {
+				bubbles: true,
+				composed: true,
+				detail: { path_to_document: parent_dir_path + name },
+			}));
+		});
+	}
+}
+customElements.define("document-handle", DocumentHandle);
+
+
+function remove_consecutive_duplicates(array) {
+	if (array == []) return [];
+	let rv = [array[0]];
+	// iterate over indexes because array.slice(1) would copy the array
+	for (let i = 1; i < array.length; i++) {
+		if (array[i] != rv.at(-1)) {
+			rv.push(array[i])
+		}
+	}
+	return rv;
 }
 
-load_main_page();
+
+class DocumentSelector extends HTMLElement {
+	constructor() {
+		super();
+		const shadow = this.attachShadow({ mode: "open" });
+		shadow.innerHTML = `<hr>`;
+		invoke('fetch_projects', {}).then(projects => {
+			// Extracting all of the repos in base, removing duplicates
+			const repos = projects.map( ({ parent_dir_path }) => parent_dir_path);
+			// repos are garentied to be alphabetically ordered
+			shadow.appendChild(new NewDocumentButton(remove_consecutive_duplicates(repos)));
+
+			projects.forEach(({ name, parent_dir_path }) => {
+				shadow.appendChild(new DocumentHandle(name, parent_dir_path))
+			});
+		})
+	}
+}
+customElements.define("document-selector", DocumentSelector);
