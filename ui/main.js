@@ -35,16 +35,10 @@ class DocumentViewer extends HTMLElement {
 	constructor(documentPath) {
 		super();
 		const shadow = this.attachShadow({ mode: "open" });
-		shadow.innerHTML = `
-			<style>
-				div#page {
-					background-color: #eee;
-				}
-			</style>
-			<div id="page"/>
-		`;
+		shadow.innerHTML = `<style></style> <div id="page"></div>`;
 		invoke('load_document', { documentPath }).then(response => {
-			shadow.querySelector("#page").innerHTML = response;
+			shadow.querySelector("style").innerHTML = response.stylesheet;
+			shadow.querySelector("#page").innerHTML = response.content;
 		});
 	}
 }

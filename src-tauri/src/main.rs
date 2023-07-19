@@ -6,13 +6,17 @@ use std::io::Write;
 use std::sync::OnceLock;
 use serde::{ Serialize, Deserialize };
 
+/// A struct (singleton) representing the global config of the app.
+/// This config file is located at `~/.config/mapl_conf.toml`.
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
     documents_root_repo: String,
 }
 
+/// The global handle for the config, it’s filled in at run-time in `main`.
 static MALP_CONFIG: OnceLock<Config> = OnceLock::new();
 
+/// A struct representing a handle to a document in the file system.
 #[derive(Serialize, Deserialize)]
 struct DocumentDescriptor {
     /// Name of the document
@@ -21,6 +25,16 @@ struct DocumentDescriptor {
     parent_dir_path: String,
 }
 
+/// A struct representing a document being rendered.
+#[derive(Serialize, Deserialize)]
+struct DocumentContents {
+    /// contents of the `style.css` file of the project.
+    stylesheet: String,
+    /// contents of the `index.md` file of the project.
+    content: String,
+}
+
+/// Fetches all of the documents beneath `documents_root_repo`.
 #[tauri::command]
 fn fetch_projects() -> Vec<DocumentDescriptor> {
     let root_repo = &MALP_CONFIG.get().unwrap().documents_root_repo;
@@ -70,11 +84,13 @@ fn create_new_document(mut repo: String, title: &str) {
 }
 
 #[tauri::command]
-fn load_document(document_path: &str) -> String {
-    let document_absolute_path =
-        MALP_CONFIG.get().unwrap().documents_root_repo.clone() + document_path + "/index.md";
-    println!("{document_absolute_path}");
-    fs::read_to_string(document_absolute_path).unwrap()
+fn load_document(document_path: &str) -> DocumentContents {
+    let parent_dir_absolute_path =
+        MALP_CONFIG.get().unwrap().documents_root_repo.clone() + document_path;
+    DocumentContents {
+        stylesheet: fs::read_to_string(parent_dir_absolute_path.clone() + "/stylesheet.css").unwrap(),
+        content: fs::read_to_string(parent_dir_absolute_path + "/index.md").unwrap()
+    }
 }
 
 fn parse_config_file() -> Config {
