@@ -35,7 +35,7 @@ class DocumentViewer extends HTMLElement {
 	constructor(documentPath) {
 		super();
 		const shadow = this.attachShadow({ mode: "open" });
-		shadow.innerHTML = `<style></style> <div id="page"></div>`;
+		shadow.innerHTML = `<style></style> <div id="page" style="margin-top: 3em;"></div>`;
 		invoke('load_document', { documentPath }).then(response => {
 			shadow.querySelector("style").innerHTML = response.stylesheet;
 			shadow.querySelector("#page").innerHTML = response.content;
