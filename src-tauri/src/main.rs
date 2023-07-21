@@ -67,11 +67,13 @@ fn fetch_projects_inner(root_repo: &str, current_dir: &str) -> Vec<DocumentDescr
         .collect()
 }
 
+/// Returns the path to the newly created document.
 #[tauri::command]
-fn create_new_document(mut repo: String, title: &str) {
+fn create_new_document(mut repo: String, title: &str) -> String {
+    let rv_document_path = repo.clone();
     repo = MALP_CONFIG.get().unwrap().documents_root_repo.clone() + &repo;
     fs::create_dir_all(&repo).unwrap();
-    let mut index_md = File::create(repo + "/index.md").unwrap();
+    let mut index_md = File::create(repo.clone() + "/index.md").unwrap();
     let header: String = {
         if title.contains(':') {
             format!("---\ntitle: |\n\t{title}\n---")
@@ -81,6 +83,11 @@ fn create_new_document(mut repo: String, title: &str) {
         }
     };
     index_md.write(header.as_bytes()).unwrap();
+
+    let mut stylesheet = File::create(repo.clone() + "/stylesheet.css").unwrap();
+    stylesheet.write("#page { padding: 3em }".as_bytes()).unwrap();
+
+    return rv_document_path;
 }
 
 #[tauri::command]

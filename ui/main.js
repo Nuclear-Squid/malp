@@ -95,10 +95,19 @@ class NewDocumentButton extends HTMLElement /* HTMLButtonElement */ {
 			dialog.close();
 		});
 
+		// Keep a reference to the web-component;
+		const self = this;
 		shadow.querySelector("#create").addEventListener("click", () => {
 			const title = shadow.querySelector("input#title").value;
 			const repo = shadow.querySelector("input#repo").value + title;
-			invoke('create_new_document', { title, repo });
+			invoke('create_new_document', { title, repo }).then(path_to_document => {
+				console.log(path_to_document);
+				self.dispatchEvent(new CustomEvent("onDocumentSelected", {
+					bubbles: true,
+					composed: true,
+					detail: { path_to_document },
+				}));
+			});
 		});
 	}
 }
