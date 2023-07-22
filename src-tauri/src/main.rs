@@ -1,6 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+/*
+ * TODO: Refactor code to have real error handling
+ */
+
 use std::fs::{ self, File };
 use std::io::Write;
 use std::sync::OnceLock;
@@ -94,9 +98,21 @@ fn create_new_document(mut repo: String, title: &str) -> String {
 fn load_document(document_path: &str) -> DocumentContents {
     let parent_dir_absolute_path =
         MALP_CONFIG.get().unwrap().documents_root_repo.clone() + document_path;
+
+    let markdown_file_path = parent_dir_absolute_path.clone() + "/index.md";
+    let markdown_extentions: Vec<pandoc::MarkdownExtension> = vec![];
+    let Ok(pandoc::PandocOutput::ToBuffer(response)) = 
+        pandoc::new()
+            .set_input(pandoc::InputKind::Files(vec![markdown_file_path.into()]))
+            .set_input_format(pandoc::InputFormat::Markdown, markdown_extentions.clone())
+            .add_option(pandoc::PandocOption::Standalone)
+            .set_output_format(pandoc::OutputFormat::Html, markdown_extentions)
+            .set_output(pandoc::OutputKind::Pipe)
+            .clone().execute()
+        else { panic!("no") };
     DocumentContents {
-        stylesheet: fs::read_to_string(parent_dir_absolute_path.clone() + "/stylesheet.css").unwrap(),
-        content: fs::read_to_string(parent_dir_absolute_path + "/index.md").unwrap()
+        stylesheet: fs::read_to_string(parent_dir_absolute_path + "/stylesheet.css").unwrap(),
+        content: response
     }
 }
 
