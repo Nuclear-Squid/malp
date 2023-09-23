@@ -5,10 +5,13 @@
  * TODO: Refactor code to have real error handling
  */
 
+use std::path::{ Path, PathBuf };
 use std::fs::{ self, File };
 use std::io::Write;
 use std::sync::OnceLock;
 use serde::{ Serialize, Deserialize };
+use notify::Watcher;
+use tauri::Manager;
 
 /// A struct (singleton) representing the global config of the app.
 /// This config file is located at `~/.config/mapl_conf.toml`.
@@ -30,12 +33,18 @@ struct DocumentDescriptor {
 }
 
 /// A struct representing a document being rendered.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 struct DocumentContents {
     /// contents of the `style.css` file of the project.
     stylesheet: String,
     /// contents of the `index.md` file of the project.
     content: String,
+}
+
+/// Struct send along with events from backend to frontend.
+#[derive(Clone, Serialize)]
+struct Payload {
+    message: DocumentContents,
 }
 
 /// Fetches all of the documents beneath `documents_root_repo`.
@@ -98,21 +107,33 @@ fn create_new_document(mut repo: String, title: &str) -> String {
 fn load_document(document_path: &str) -> DocumentContents {
     let parent_dir_absolute_path =
         MALP_CONFIG.get().unwrap().documents_root_repo.clone() + document_path;
+    load_document_absolute(parent_dir_absolute_path.into())
+}
 
-    let markdown_file_path = parent_dir_absolute_path.clone() + "/index.md";
-    let markdown_extentions: Vec<pandoc::MarkdownExtension> = vec![];
-    let Ok(pandoc::PandocOutput::ToBuffer(response)) = 
+fn load_document_absolute(parent_dir_absolute_path: PathBuf) -> DocumentContents {
+    // move variable out to rename it
+    let mut markdown_file_path = parent_dir_absolute_path.clone();
+    markdown_file_path.push("index.md");
+
+    use pandoc::*;
+    let markdown_extentions: Vec<MarkdownExtension> = vec![];
+    let Ok(PandocOutput::ToBuffer(pandoc_response)) = 
         pandoc::new()
-            .set_input(pandoc::InputKind::Files(vec![markdown_file_path.into()]))
-            .set_input_format(pandoc::InputFormat::Markdown, markdown_extentions.clone())
-            .add_option(pandoc::PandocOption::Standalone)
-            .set_output_format(pandoc::OutputFormat::Html, markdown_extentions)
-            .set_output(pandoc::OutputKind::Pipe)
+            .set_input(InputKind::Files(vec![markdown_file_path]))
+            .set_input_format(InputFormat::Markdown, markdown_extentions.clone())
+            .add_option(PandocOption::Standalone)
+            .set_output_format(OutputFormat::Html, markdown_extentions)
+            .set_output(OutputKind::Pipe)
             .clone().execute()
         else { panic!("no") };
+
+    let mut stylesheet_path = parent_dir_absolute_path;
+    stylesheet_path.push("stylesheet.css");
+    let stylesheet_content = fs::read_to_string(stylesheet_path).unwrap();
+
     DocumentContents {
-        stylesheet: fs::read_to_string(parent_dir_absolute_path + "/stylesheet.css").unwrap(),
-        content: response
+        stylesheet: stylesheet_content,
+        content: pandoc_response
     }
 }
 
@@ -127,12 +148,39 @@ fn parse_config_file() -> Config {
 fn main() {
     MALP_CONFIG.set(parse_config_file()).unwrap();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
                 fetch_projects,
                 create_new_document,
                 load_document,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("cannot build application");
+
+    let app_handle = app.handle();
+
+    use notify::event as NE;
+    let mut document_folder_watcher =
+        notify::recommended_watcher(move |res: notify::Result<NE::Event>| {
+            let Ok(mut res) = res else { return () };
+            if matches!(res.kind, NE::EventKind::Modify(NE::ModifyKind::Data(_))) {
+                let mut document_path = res.paths.remove(0);
+                document_path.pop();  // get rid of modified file name
+                app_handle.emit_all("document-modified", Payload {
+                    message: load_document_absolute(document_path),
+                }).unwrap();
+            }
+        })
+    .expect("eror creating the document folder watcher");
+
+    document_folder_watcher
+        .watch(Path::new(&MALP_CONFIG.get().unwrap().documents_root_repo), notify::RecursiveMode::Recursive)
+        .expect("error watching folder");
+
+    app.run(|_app_handle, event| match event {
+        tauri::RunEvent::ExitRequested { api, .. } => {
+            api.prevent_exit();
+        },
+        _ => {},
+    })
 }

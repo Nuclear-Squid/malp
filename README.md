@@ -14,7 +14,7 @@ usable.
 - [X] document selection page
 - [X] rendering a document in the app
 - [X] actually transpile the markdown document with pandoc
-- [~] watch for changes and notify the frontend
+- [X] watch for changes and notify the frontend
 - [ ] adding support for pagedJS (to get better prints)
 - [ ] allow rendering the previewed document to a pdf file
 - [ ] adding support for mathjax (to render latex)

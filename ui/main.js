@@ -1,5 +1,8 @@
 // access the pre-bundled global API functions
-const { invoke } = window.__TAURI__.tauri
+// The `const { … } = window.__TAURI__.'module'` pattern replaces entirely the
+// `import` keyword, as that doesn’t fucking work when not using Vite.
+const { invoke } = window.__TAURI__.tauri;
+const { listen } = window.__TAURI__.event;
 
 /*
  * TODO: Find better names for half of the classes in this file
@@ -9,6 +12,7 @@ class StateManager extends HTMLElement {
 	constructor() {
 		super();
 		const shadow = this.attachShadow({ mode: "open" });
+
 		shadow.innerHTML = `
 			<style>
 				h1 {
@@ -35,11 +39,20 @@ class DocumentViewer extends HTMLElement {
 	constructor(documentPath) {
 		super();
 		const shadow = this.attachShadow({ mode: "open" });
-		shadow.innerHTML = `<style></style> <div id="page" style="margin-top: 3em;"></div>`;
-		invoke('load_document', { documentPath }).then(response => {
-			shadow.querySelector("style").innerHTML = response.stylesheet;
-			shadow.querySelector("#page").innerHTML = response.content;
-		});
+        const style = document.createElement("style");
+        const page  = document.createElement("div");
+        page.id = "page";
+        page.style = "margin-top: 3em;";
+        shadow.appendChild(style);
+        shadow.appendChild(page);
+        invoke('load_document', { documentPath }).then(response => {
+            style.innerHTML = response.stylesheet;
+            page .innerHTML = response.content;
+        });
+        listen("document-modified", ({ payload }) => {
+            style.innerHTML = payload.message.stylesheet;
+            page .innerHTML = payload.message.content;
+        });
 	}
 }
 customElements.define("document-viewer", DocumentViewer);
