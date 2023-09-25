@@ -17,11 +17,17 @@ use tauri::Manager;
 /// This config file is located at `~/.config/mapl_conf.toml`.
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
-    documents_root_repo: String,
+    documents_root_repo: PathBuf,
 }
 
 /// The global handle for the config, it’s filled in at run-time in `main`.
 static MALP_CONFIG: OnceLock<Config> = OnceLock::new();
+
+macro_rules! get_in_config {
+    ($field :  ident) => {
+        MALP_CONFIG.get().unwrap().$field.clone()
+    }
+}
 
 /// A struct representing a handle to a document in the file system.
 #[derive(Serialize, Deserialize)]
@@ -50,8 +56,9 @@ struct Payload {
 /// Fetches all of the documents beneath `documents_root_repo`.
 #[tauri::command]
 fn fetch_projects() -> Vec<DocumentDescriptor> {
-    let root_repo = &MALP_CONFIG.get().unwrap().documents_root_repo;
-    fetch_projects_inner(root_repo, root_repo)
+    let root_repo: Box<str> =
+            get_in_config!(documents_root_repo).to_str().unwrap().into();
+    fetch_projects_inner(&root_repo, &root_repo)
 }
 
 fn fetch_projects_inner(root_repo: &str, current_dir: &str) -> Vec<DocumentDescriptor> {
@@ -62,13 +69,20 @@ fn fetch_projects_inner(root_repo: &str, current_dir: &str) -> Vec<DocumentDescr
         if entry.file_name() == "index.md" {
             let (absolute_parent_dir_path, project_name) =
                 current_dir.rsplit_once('/').unwrap();
-            let parent_dir_path = absolute_parent_dir_path
-                    .strip_prefix(root_repo)
-                    .unwrap();
+
+            let parent_dir_path: String = unsafe {
+                let tmp = absolute_parent_dir_path.strip_prefix(root_repo).unwrap();
+                    // .to_string() + "/"
+                if tmp == "" {
+                    "/".to_string()
+                } else {
+                    tmp.get_unchecked(1..).to_string() + "/"
+                }
+            };
 
             return vec![DocumentDescriptor {
                 name: project_name.to_owned(),
-                parent_dir_path: parent_dir_path.to_owned() + "/",
+                parent_dir_path: parent_dir_path,
             }];
         }
     }
@@ -82,44 +96,46 @@ fn fetch_projects_inner(root_repo: &str, current_dir: &str) -> Vec<DocumentDescr
 
 /// Returns the path to the newly created document.
 #[tauri::command]
-fn create_new_document(mut repo: String, title: &str) -> String {
-    let rv_document_path = repo.clone();
-    repo = MALP_CONFIG.get().unwrap().documents_root_repo.clone() + &repo;
-    fs::create_dir_all(&repo).unwrap();
-    let mut index_md = File::create(repo.clone() + "/index.md").unwrap();
+fn create_new_document(repo: &str, title: &str) -> PathBuf {
+    let mut path_to_document: PathBuf = get_in_config!(documents_root_repo);
+    path_to_document.push(repo);
+    path_to_document.push(title);
+    fs::create_dir_all(&path_to_document).unwrap();
+
     let header: String = {
         if title.contains(':') {
             format!("---\ntitle: |\n\t{title}\n---")
-        }
-        else {
+        } else {
             format!("---\ntitle: {title}\n---")
         }
     };
-    index_md.write(header.as_bytes()).unwrap();
 
-    let mut stylesheet = File::create(repo.clone() + "/stylesheet.css").unwrap();
-    stylesheet.write("#page { padding: 3em }".as_bytes()).unwrap();
+    path_to_document.push("index.md");
+    let mut index_md = File::create(&path_to_document).unwrap();
+    index_md.write_all(header.as_bytes()).unwrap();
 
-    return rv_document_path;
+    path_to_document.set_file_name("stylesheet.css");
+    let mut stylesheet = File::create(&path_to_document).unwrap();
+    stylesheet.write(b"#page { padding: 3em }").unwrap();
+
+    path_to_document.pop();
+    path_to_document
 }
 
 #[tauri::command]
 fn load_document(document_path: &str) -> DocumentContents {
-    let parent_dir_absolute_path =
-        MALP_CONFIG.get().unwrap().documents_root_repo.clone() + document_path;
-    load_document_absolute(parent_dir_absolute_path.into())
+    let mut absolute_path = get_in_config!(documents_root_repo);
+    absolute_path.push(document_path);
+    load_document_absolute(absolute_path)
 }
 
-fn load_document_absolute(parent_dir_absolute_path: PathBuf) -> DocumentContents {
-    // move variable out to rename it
-    let mut markdown_file_path = parent_dir_absolute_path.clone();
-    markdown_file_path.push("index.md");
-
+fn load_document_absolute(mut document_path: PathBuf) -> DocumentContents {
     use pandoc::*;
+    document_path.push("index.md");
     let markdown_extentions: Vec<MarkdownExtension> = vec![];
     let Ok(PandocOutput::ToBuffer(pandoc_response)) = 
         pandoc::new()
-            .set_input(InputKind::Files(vec![markdown_file_path]))
+            .set_input(InputKind::Files(vec![document_path.clone()]))
             .set_input_format(InputFormat::Markdown, markdown_extentions.clone())
             .add_option(PandocOption::Standalone)
             .set_output_format(OutputFormat::Html, markdown_extentions)
@@ -127,13 +143,10 @@ fn load_document_absolute(parent_dir_absolute_path: PathBuf) -> DocumentContents
             .clone().execute()
         else { panic!("no") };
 
-    let mut stylesheet_path = parent_dir_absolute_path;
-    stylesheet_path.push("stylesheet.css");
-    let stylesheet_content = fs::read_to_string(stylesheet_path).unwrap();
-
+    document_path.set_file_name("stylesheet.css");
     DocumentContents {
-        stylesheet: stylesheet_content,
-        content: pandoc_response
+        stylesheet: fs::read_to_string(document_path).unwrap(),
+        content   : pandoc_response,
     }
 }
 
@@ -141,7 +154,7 @@ fn parse_config_file() -> Config {
     let config_file_path = shellexpand::tilde("~/.config/malp_conf.toml");
     let config_contents = fs::read_to_string(config_file_path.as_ref()).unwrap();
     let mut rv: Config = toml::from_str(&config_contents).unwrap();
-    rv.documents_root_repo = shellexpand::tilde(&rv.documents_root_repo).as_ref().to_owned();
+    rv.documents_root_repo = shellexpand::tilde(rv.documents_root_repo.to_str().unwrap()).as_ref().into();
     rv
 }
 

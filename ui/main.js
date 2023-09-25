@@ -26,7 +26,7 @@ class StateManager extends HTMLElement {
 			<document-selector/>
 		`;
 
-		this.addEventListener("onDocumentSelected", event => {
+		this.addEventListener("DocumentSelected", event => {
 			shadow.innerHTML = ``;
 			shadow.appendChild(new DocumentViewer(event.detail.path_to_document));
 		});
@@ -112,10 +112,9 @@ class NewDocumentButton extends HTMLElement /* HTMLButtonElement */ {
 		const self = this;
 		shadow.querySelector("#create").addEventListener("click", () => {
 			const title = shadow.querySelector("input#title").value;
-			const repo = shadow.querySelector("input#repo").value + title;
+			const repo = shadow.querySelector("input#repo").value;
 			invoke('create_new_document', { title, repo }).then(path_to_document => {
-				console.log(path_to_document);
-				self.dispatchEvent(new CustomEvent("onDocumentSelected", {
+				self.dispatchEvent(new CustomEvent("DocumentSelected", {
 					bubbles: true,
 					composed: true,
 					detail: { path_to_document },
@@ -144,7 +143,7 @@ class DocumentHandle extends HTMLElement {
 		`;
 		// Using `function` to not fuck `this` up.
 		shadow.querySelector("button").addEventListener("click", function () {
-			this.dispatchEvent(new CustomEvent("onDocumentSelected", {
+			this.dispatchEvent(new CustomEvent("DocumentSelected", {
 				bubbles: true,
 				composed: true,
 				detail: { path_to_document: parent_dir_path + name },
