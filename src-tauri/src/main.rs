@@ -133,7 +133,7 @@ fn load_document_absolute(mut document_path: PathBuf) -> DocumentContents {
     use pandoc::*;
     document_path.push("index.md");
     let markdown_extentions: Vec<MarkdownExtension> = vec![];
-    let Ok(PandocOutput::ToBuffer(pandoc_response)) = 
+    let Ok(PandocOutput::ToBuffer(pandoc_response)) =
         pandoc::new()
             .set_input(InputKind::Files(vec![document_path.clone()]))
             .set_input_format(InputFormat::Markdown, markdown_extentions.clone())
@@ -163,9 +163,9 @@ fn main() {
 
     let app = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-                fetch_projects,
-                create_new_document,
-                load_document,
+            fetch_projects,
+            create_new_document,
+            load_document,
         ])
         .build(tauri::generate_context!())
         .expect("cannot build application");
