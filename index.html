@@ -1,16 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="ui/style.css">
     <script type="module" src="ui/main.ts"></script>
+    <script type="module" src="ui/web_components/main_page.ts"></script>
     <script type="module" src="ui/web_components/document-selector.ts"></script>
+    <style>
+        h1 {
+            text-align: center;
+            color: #eee;
+            font-size: 3em;
+            margin: 1em;
+        }
+    </style>
     <title>Document</title>
 </head>
 
 <body>
-    <app-root/>
+    <h1> Markdown Live Preview </h1>
+    <main-page></main-page>
 </body>
 </html>

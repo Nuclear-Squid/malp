@@ -1,28 +1,12 @@
-import DocumentSelector from "./web_components/document-selector.ts"
-import DocumentViewer   from "./web_components/document-viewer.ts"
+import MainPage from "./web_components/main_page.ts";
+import DocumentViewer from "./web_components/document-viewer.ts";
 
-class StateManager extends HTMLElement {
-    constructor() {
-        super();
-        const shadow = this.attachShadow({ mode: "open" });
+window.addEventListener("DocumentSelected", event => {
+    document.querySelector("main-page")
+        .replaceWith(new DocumentViewer(event.detail.path_to_document));
+})
 
-        shadow.innerHTML = `
-            <style>
-                h1 {
-                    text-align: center;
-                    color: #eee;
-                    font-size: 3em;
-                    margin: 1em;
-                }
-            </style>
-            <h1> Markdown Live Preview </h1>
-            <document-selector/>
-        `;
-
-        this.addEventListener("DocumentSelected", event => {
-            shadow.innerHTML = ``;
-            shadow.appendChild(new DocumentViewer((<any>event).detail.path_to_document));
-        });
-    }
-}
-customElements.define("app-root", StateManager);
+window.addEventListener("GoBackToMainPage", event => {
+    document.querySelector("document-viewer")
+        .replaceWith(new MainPage);
+})

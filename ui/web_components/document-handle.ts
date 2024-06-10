@@ -23,7 +23,7 @@ export default class DocumentHandle extends HTMLElement {
             this.dispatchEvent(new CustomEvent("DocumentSelected", {
                 bubbles: true,
                 composed: true,
-                detail: { path_to_document: parent_dir_path + name },
+                detail: { path_to_document: parent_dir_path + '/' + name },
             }));
         });
     }

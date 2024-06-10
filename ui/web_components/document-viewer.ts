@@ -11,12 +11,21 @@ export default class DocumentViewer extends HTMLElement {
     constructor(documentPath) {
         super();
         const shadow = this.attachShadow({ mode: "open" });
+        const go_back_button = document.createElement("button");
         const style = document.createElement("style");
         const page  = document.createElement("div");
 
+        go_back_button.innerText = "Go back to main page";
+        go_back_button.onclick = () => {
+            this.dispatchEvent(new CustomEvent("GoBackToMainPage", {
+                bubbles: true,
+                composed: true,
+            }));
+        };
         page.id = "page";
         page.style.cssText = "margin-top: 3em;";
 
+        shadow.appendChild(go_back_button);
         shadow.appendChild(style);
         shadow.appendChild(page);
 

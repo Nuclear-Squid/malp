@@ -1,8 +1,8 @@
 // access the pre-bundled global API functions
 import { invoke } from "@tauri-apps/api/tauri";
 
-import NewDocumentButton from "./new-document-button.ts"
-import DocumentHandle    from "./document-handle.ts"
+import NewDocumentButton from "./new-document-button"
+import DocumentHandle    from "./document-handle"
 
 interface Payload {
     name: string,
@@ -25,24 +25,16 @@ function remove_consecutive_duplicates(array: Array<string>) {
 
 
 export default class DocumentSelector extends HTMLElement {
-    constructor() {
+    constructor(folderName) {
         super();
 
         const shadow = this.attachShadow({ mode: "open" });
-        shadow.innerHTML = `<hr>`;
+        shadow.innerHTML = `<h2> ${folderName} </h2>`;
+        this.id = folderName;
+    }
 
-        console.log("prout");
-
-        invoke<Array<Payload>>('fetch_projects', {}).then(projects => {
-            // Extracting all of the repos in base, removing duplicates
-            const repos = projects.map( ({ parent_dir_path }) => parent_dir_path);
-            // repos are garentied to be alphabetically ordered
-            shadow.appendChild(new NewDocumentButton(remove_consecutive_duplicates(repos)));
-
-            projects.forEach(({ name, parent_dir_path }) => {
-                shadow.appendChild(new DocumentHandle(name, parent_dir_path))
-            });
-        })
+    pushProject(projectName) {
+        this.shadowRoot.appendChild(new DocumentHandle(projectName, this.id))
     }
 }
 customElements.define("document-selector", DocumentSelector);

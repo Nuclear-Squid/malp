@@ -5,11 +5,15 @@
  * TODO: Refactor code to have real error handling
  */
 
-use std::path::{ Path, PathBuf };
-use std::fs::{ self, File };
-use std::io::Write;
-use std::sync::OnceLock;
+use std::{
+    path::{ Path, PathBuf },
+    fs::{ self, File },
+    io::Write,
+    sync::OnceLock,
+};
+
 use serde::{ Serialize, Deserialize };
+use walkdir::WalkDir;
 use notify::Watcher;
 use tauri::Manager;
 
@@ -23,19 +27,8 @@ struct Config {
 /// The global handle for the config, it’s filled in at run-time in `main`.
 static MALP_CONFIG: OnceLock<Config> = OnceLock::new();
 
-macro_rules! get_in_config {
-    ($field :  ident) => {
-        MALP_CONFIG.get().unwrap().$field.clone()
-    }
-}
-
-/// A struct representing a handle to a document in the file system.
-#[derive(Serialize, Deserialize)]
-struct DocumentDescriptor {
-    /// Name of the document
-    name: String,
-    /// Path to the dir containing the document (relative to `documents_root_repo`)
-    parent_dir_path: String,
+macro_rules! config {
+    ($field: ident) => (&MALP_CONFIG.get().unwrap().$field)
 }
 
 /// A struct representing a document being rendered.
@@ -55,49 +48,20 @@ struct Payload {
 
 /// Fetches all of the documents beneath `documents_root_repo`.
 #[tauri::command]
-fn fetch_projects() -> Vec<DocumentDescriptor> {
-    let root_repo: Box<str> =
-            get_in_config!(documents_root_repo).to_str().unwrap().into();
-    fetch_projects_inner(&root_repo, &root_repo)
-}
-
-fn fetch_projects_inner(root_repo: &str, current_dir: &str) -> Vec<DocumentDescriptor> {
-    // Check if current dir is a document, and return it if it is
-    for entry in fs::read_dir(current_dir).unwrap() {
-        let Ok(entry) = entry else { continue; };
-
-        if entry.file_name() == "index.md" {
-            let (absolute_parent_dir_path, project_name) =
-                current_dir.rsplit_once('/').unwrap();
-
-            let parent_dir_path: String = unsafe {
-                let tmp = absolute_parent_dir_path.strip_prefix(root_repo).unwrap();
-                    // .to_string() + "/"
-                if tmp == "" {
-                    "/".to_string()
-                } else {
-                    tmp.get_unchecked(1..).to_string() + "/"
-                }
-            };
-
-            return vec![DocumentDescriptor {
-                name: project_name.to_owned(),
-                parent_dir_path: parent_dir_path,
-            }];
-        }
-    }
-
-    // Current dir isn’t a document, check sub directories
-    fs::read_dir(current_dir).unwrap()
-        .map(|entry| fetch_projects_inner(root_repo, entry.unwrap().path().to_str().unwrap()))
-        .flatten()
+fn fetch_projects() -> Vec<PathBuf> {
+    let root_repo = config!(documents_root_repo);
+    WalkDir::new(root_repo)
+        .into_iter()
+        .filter_map(|e| e.ok())  // Ignore errors
+        .filter(|e| e.file_name().to_str() == Some("index.md"))
+        .map(|e| e.path().parent().unwrap().strip_prefix(root_repo).unwrap().to_owned())
         .collect()
 }
 
 /// Returns the path to the newly created document.
 #[tauri::command]
 fn create_new_document(repo: &str, title: &str) -> PathBuf {
-    let mut path_to_document: PathBuf = get_in_config!(documents_root_repo);
+    let mut path_to_document: PathBuf = config!(documents_root_repo).clone();
     path_to_document.push(repo);
     path_to_document.push(title);
     fs::create_dir_all(&path_to_document).unwrap();
@@ -124,7 +88,7 @@ fn create_new_document(repo: &str, title: &str) -> PathBuf {
 
 #[tauri::command]
 fn load_document(document_path: &str) -> DocumentContents {
-    let mut absolute_path = get_in_config!(documents_root_repo);
+    let mut absolute_path = config!(documents_root_repo).clone();
     absolute_path.push(document_path);
     load_document_absolute(absolute_path)
 }
@@ -133,15 +97,20 @@ fn load_document_absolute(mut document_path: PathBuf) -> DocumentContents {
     use pandoc::*;
     document_path.push("index.md");
     let markdown_extentions: Vec<MarkdownExtension> = vec![];
-    let Ok(PandocOutput::ToBuffer(pandoc_response)) =
+    let raw_pandoc_response =
         pandoc::new()
             .set_input(InputKind::Files(vec![document_path.clone()]))
             .set_input_format(InputFormat::Markdown, markdown_extentions.clone())
             .add_option(PandocOption::Standalone)
             .set_output_format(OutputFormat::Html, markdown_extentions)
             .set_output(OutputKind::Pipe)
-            .clone().execute()
-        else { panic!("no") };
+            .clone().execute();
+
+    let pandoc_response = match raw_pandoc_response {
+        Ok(PandocOutput::ToBuffer(response)) => response,
+        Err(e) => panic!("Pandoc Failed: {e}"),
+        Ok(_) => panic!("Enexpected pandoc output"),
+    };
 
     document_path.set_file_name("stylesheet.css");
     DocumentContents {

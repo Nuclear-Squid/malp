@@ -20,6 +20,7 @@ toml = "0.7.3"
 shellexpand = "3.1.0"
 pandoc = "0.8.10"
 notify = "6.0.1"
+walkdir = "2.4.0"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem
@@ -29,3 +30,6 @@ custom-protocol = ["tauri/custom-protocol"]
 # Enable high optimizations for dependencies, but not for our code:
 [profile.dev.package."*"]
 opt-level = 3
+
+[build]
+rustflags = ["-Z", "threads=8"]
