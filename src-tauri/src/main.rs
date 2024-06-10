@@ -102,6 +102,7 @@ fn load_document_absolute(mut document_path: PathBuf) -> DocumentContents {
             .set_input(InputKind::Files(vec![document_path.clone()]))
             .set_input_format(InputFormat::Markdown, markdown_extentions.clone())
             .add_option(PandocOption::Standalone)
+            .add_option(PandocOption::Template("malp_default_md_html".into()))
             .set_output_format(OutputFormat::Html, markdown_extentions)
             .set_output(OutputKind::Pipe)
             .clone().execute();
